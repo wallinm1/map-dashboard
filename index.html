@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Map Dashboard</title>
+<meta charset="UTF-8">
+<meta content='width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0' name='viewport'>
+<link type="text/css" href="css/leaflet.css" rel="stylesheet"/>
+<link type="text/css" href="css/leaflet.markercluster.css" rel="stylesheet"/>
+<link type="text/css" href="css/dc.css" rel="stylesheet"/>
+<link type="text/css" href="css/bootstrap.min.css" rel="stylesheet">
+<link type="text/css" href="css/jquery.dataTables.min.css" rel="stylesheet">
+<style>
+    h4 span {
+      font-size:14px;
+      font-weight:normal;
+      }
+    h2 {
+      float: left;
+    }
+    h2 span {
+      font-size:14px;
+      font-weight:normal;
+      }
+	.dc-chart g.row text {
+	  fill: black;
+	  font-size: 10px;
+	}
+	label {
+	  font: bold 12px sans-serif;
+	}
+</style>
+</head>
+<body>
+
+<div class='container' id='main-container'>
+<div class='content'>
+<div class='container' style='font: 12px sans-serif;'>
+	<div class = 'row'>
+		<div class="col-xs-10 dc-data-count" style = 'float:left;'>
+			<h2>Nashville Building Permits Dashboard
+			  <span>
+				<span class="filter-count"></span>
+				 selected out of 
+				<span class="total-count"></span>
+				 records 
+			  </span>
+			</h2>
+		</div>
+	</div>
+	
+	<div class = 'row'>
+		<div class='col-xs-9' id='dc-map-chart'>
+		  <h3>
+			Map - Building permits
+				<span>
+					<a class="reset"
+					href="#" id="mapReset"
+					style="display: none;">
+					reset
+					</a>
+				</span>
+		  </h3>
+		</div> 
+
+		<div class='col-xs-3' id = 'dc-row-chart'>
+			<h3>
+			Row Chart - Cities
+				<span>
+					<a class="reset"
+					href="javascript:rowChart.filterAll();dc.redrawAll();"
+					style="display: none;">
+					reset
+					</a>
+				</span>
+			</h3>
+		</div>
+	</div>
+	
+	<div class='row'>
+		<div class='col-xs-12' id='dc-time-chart'>
+		  <h3>Bar Chart - Permits by issuance date</h3>
+		</div>
+	</div>
+	
+	<div class='row'>
+		<div class='col-xs-12'>
+			<h3>Data Table</h3>
+				<table class='table table-hover' id='dc-table-chart'>
+					<thead>
+						<tr class='header'>
+							<th>Issuance Date</th>
+							<th>Contact</th>
+							<th>City</th>
+							<th>Permit Type</th>
+							<th>Address</th>
+						</tr>
+					</thead>
+				</table>
+		</div>
+	</div>
+  
+</div>
+</div>
+</div>
+
+<script type="text/javascript" src="js/d3.js"></script>
+<script type="text/javascript" src="js/crossfilter.js"></script>
+<script type="text/javascript" src="js/dc.js"></script>
+<script type="text/javascript" src="js/leaflet.js"></script>
+<script type="text/javascript" src='js/jquery.js'></script>
+<script type="text/javascript" src='js/jquery.dataTables.min.js'></script>
+<script type="text/javascript" src='js/bootstrap.min.js'></script>
+<script type="text/javascript" src="js/leaflet.markercluster.js"></script>
+<script type="text/javascript" src="js/dc.leaflet.js"></script>
+<script type="text/javascript">
+
+//connect charts to their appropriate selectors
+var mapChart = dc_leaflet.markerChart("#dc-map-chart");
+var rowChart = dc.rowChart("#dc-row-chart");
+var timeChart = dc.barChart("#dc-time-chart");
+var dataCount = dc.dataCount(".dc-data-count");
+var datatable = $('#dc-table-chart');
+//initial map view
+var defaultCenter = [42.69,25.42];
+var defaultZoom = 1;
+
+d3.json("data/nashPermits.json", function(data) {
+	var dateFormat = d3.time.format("%Y-%m-%dT%H:%M:%S");
+    data.forEach( function(d,i) {
+		d.date_e = dateFormat.parse(d.date_entered);
+		d.date_i = dateFormat.parse(d.date_issued);
+		//handle missing values for table variables
+		d.contact = d.contact ? d.contact : "MISSING";
+		d.city = d.city ? d.city : "MISSING";
+		d.permit_type_description = d.permit_type_description ? d.permit_type_description : "MISSING";
+		d.address = d.address ? d.address : "MISSING";	
+		// parse lat lng-data
+		if (d.mapped_location.latitude!=null && d.mapped_location.latitude!=undefined) {
+			d.geo = d.mapped_location.latitude + "," + d.mapped_location.longitude;
+		} else {
+			d.geo = "40.7141667,-74.0063889" //dummy coordinates, NYC
+		}
+          });
+	
+	//toplevel crossfilter
+	var xf = crossfilter(data);
+	
+	//counter
+	var all = xf.groupAll();
+	dataCount.dimension(xf)
+		.group(all);
+	
+	//map
+	var facilities = xf.dimension(function(d) { return d.geo; });
+	mapChart.dimension(facilities)
+	  .group(facilities.group())
+	  .width(630)
+	  .height(300)
+	  .margins({top: 10, right: 10, bottom: 20, left: 40})
+	  .center(defaultCenter)
+	  .zoom(defaultZoom)
+	  .renderPopup(false)
+	  .brushOn(true)
+	  .cluster(true)
+	  .filterByArea(true);
+	
+	//row chart	
+	var cities = xf.dimension(function(d) { return d.city; });
+	rowChart.height(300)
+	  .width(330)
+	  .margins({top: 10, right: 10, bottom: 20, left: 40})
+	  .dimension(cities)
+	  .group(cities.group())
+	  .ordering(function (p) {
+		  return -p.value;
+	  })
+	  .elasticX(true);
+	 
+	//time series bar chart
+	var issuanceDates = xf.dimension(function (d) { return d.date_i; });
+	timeChart.width(960)
+		.height(200)
+		.margins({top: 10, right: 10, bottom: 20, left: 40})
+		.dimension(issuanceDates)
+		.group(issuanceDates.group(d3.time.day))
+		.transitionDuration(500)
+		.elasticY(true)
+		.x(d3.time.scale().domain([new Date(2014, 6, 1), new Date(2014, 12, 31)]))
+		.round(d3.time.day.round)
+		.xUnits(d3.time.days)
+		.elasticY(true)
+		.elasticX(true)
+		.xAxis().ticks(5);	
+	
+	//table
+	//dimension for table search
+	var tableDimension = xf.dimension(function (d) { return d.contact.toLowerCase() + ' ' +
+													d.city.toLowerCase() + ' ' +
+													d.permit_type_description.toLowerCase() + ' ' +
+													d.address.toLowerCase();});
+	
+	//set options and columns
+	var dataTableOptions = {
+        "bSort": true,
+		columnDefs: [
+			{
+				targets: 0,
+				data: function (d) { return d.date_i; },
+				type: 'date'
+			},
+			{
+				targets: 1,
+				data: function (d) { return d.contact; }
+			},
+			{
+				targets: 2,
+				data: function (d) { return d.city; }
+			},
+			{
+				targets: 3,
+				data: function (d) { return d.permit_type_description;}
+			},
+			{
+				targets: 4,
+				data: function (d) {return d.address;}
+			}
+		]
+	};
+	
+	//initialize datatable
+	datatable.dataTable(dataTableOptions);
+	
+	//custom refresh function, see http://stackoverflow.com/questions/21113513/dcjs-reorder-datatable-by-column/21116676#21116676
+	function RefreshTable() {
+            dc.events.trigger(function () {
+                alldata = tableDimension.top(Infinity);
+                datatable.fnClearTable();
+                datatable.fnAddData(alldata);
+                datatable.fnDraw();
+            });
+        }
+	
+	//call RefreshTable when dc-charts are filtered
+	for (var i = 0; i < dc.chartRegistry.list().length; i++) {
+		var chartI = dc.chartRegistry.list()[i];
+		chartI.on("filtered", RefreshTable);
+	}
+	
+	//filter all charts when using the datatables search box
+	 $(":input").on('keyup',function(){
+		text_filter(tableDimension, this.value);//cities is the dimension for the data table
+
+	function text_filter(dim,q){
+		 if (q!='') {
+			dim.filter(function(d){
+				return d.indexOf (q.toLowerCase()) !== -1;
+			});
+		} else {
+			dim.filterAll();
+			}
+		RefreshTable();
+		dc.redrawAll();}
+	});
+	
+	//reset map view on clicking the reset button
+	 $("#mapReset").on('click', function() {
+		mapChart.map().setView(defaultCenter, defaultZoom);
+	 });
+	//initial table refresh
+	RefreshTable();
+	//initialize other charts
+	dc.renderAll();
+});
+
+</script>
+</body>
+</html>
