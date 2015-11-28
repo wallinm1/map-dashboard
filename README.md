@@ -11,3 +11,7 @@ The dashboard is largely a combination of ideas found in other tutorials and imp
 * The [Integrate with DataTables.js issue thread](https://github.com/dc-js/dc.js/issues/966) on the `dc.js` Github page.
 * [This](http://stackoverflow.com/questions/21113513/dcjs-reorder-datatable-by-column/21116676#21116676) Stack Overflow-post
 * [This](http://www.integritywatch.eu/) filterable `dc.js`-dashboard by the EU Integrity Watch and [tttp](https://github.com/tttp)
+
+#### Updates 28.11.2015
+* Added the `purpose`-field of the dataset as a clickable row detail and made the datatable searchable on that field.
+* Fixed a bug that caused DataTables to display a warning message for text searches that return empty selections by defining a `defaultContent`-parameter for all columns.

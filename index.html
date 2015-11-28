@@ -134,6 +134,7 @@ d3.json("data/nashPermits.json", function(data) {
 		d.city = d.city ? d.city : "MISSING";
 		d.permit_type_description = d.permit_type_description ? d.permit_type_description : "MISSING";
 		d.address = d.address ? d.address : "MISSING";	
+		d.purpose = d.purpose ? d.purpose: "MISSING";
 		// parse lat lng-data
 		if (d.mapped_location.latitude!=null && d.mapped_location.latitude!=undefined) {
 			d.geo = d.mapped_location.latitude + "," + d.mapped_location.longitude;
@@ -197,7 +198,8 @@ d3.json("data/nashPermits.json", function(data) {
 	var tableDimension = xf.dimension(function (d) { return d.contact.toLowerCase() + ' ' +
 													d.city.toLowerCase() + ' ' +
 													d.permit_type_description.toLowerCase() + ' ' +
-													d.address.toLowerCase();});
+													d.address.toLowerCase() + ' ' +
+													d.purpose.toLowerCase();});
 	
 	//set options and columns
 	var dataTableOptions = {
@@ -206,29 +208,61 @@ d3.json("data/nashPermits.json", function(data) {
 			{
 				targets: 0,
 				data: function (d) { return d.date_i; },
-				type: 'date'
+				type: 'date',
+				defaultContent: 'Not found'
 			},
 			{
 				targets: 1,
-				data: function (d) { return d.contact; }
+				data: function (d) { return d.contact; },
+				defaultContent: ''
 			},
 			{
 				targets: 2,
-				data: function (d) { return d.city; }
+				data: function (d) { return d.city; },
+				defaultContent: ''
 			},
 			{
 				targets: 3,
-				data: function (d) { return d.permit_type_description;}
+				data: function (d) { return d.permit_type_description;},
+				defaultContent: ''
 			},
 			{
 				targets: 4,
-				data: function (d) {return d.address;}
+				data: function (d) {return d.address;},
+				defaultContent: ''
+			},
+			{
+				targets: 5, //search column
+				data: function (d) {return d.purpose;},
+				defaultContent: '',
+				visible: false
 			}
 		]
 	};
 	
 	//initialize datatable
 	datatable.dataTable(dataTableOptions);
+	
+	//row details
+	function format ( d ) {
+		return '<b>Purpose: </b>' + d.purpose;
+	}
+	
+	datatable.DataTable().on('click', 'tr[role="row"]', function () {
+        var tr = $(this);
+        var row = datatable.DataTable().row( tr );
+ 
+        if ( row.child.isShown() ) {
+            // This row is already open - close it
+            row.child.hide();
+            tr.removeClass('shown');
+        }
+        else {
+            // Open this row
+            row.child( format(row.data()) ).show();
+            tr.addClass('shown');
+        }
+    } );
 	
 	//custom refresh function, see http://stackoverflow.com/questions/21113513/dcjs-reorder-datatable-by-column/21116676#21116676
 	function RefreshTable() {
